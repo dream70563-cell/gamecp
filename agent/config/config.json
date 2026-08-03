@@ -1,0 +1,14 @@
+{
+  "server": {
+    "name": "Dream70563_Server",
+    "path": "/root/bedrock-1.26.33.2",
+    "binary": "./bedrock_server"
+  },
+  "websocket": {
+    "url": "ws://127.0.0.1:8080/ws"
+  },
+  "agent": {
+    "reconnectDelay": 5000,
+    "heartbeat": 30000
+  }
+}

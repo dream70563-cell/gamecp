@@ -1,0 +1,12 @@
+{
+  "name": "gamecp",
+  "private": true,
+  "scripts": {
+    "dev": "cd frontend && npm run dev -- --host",
+    "build": "cd frontend && npm run build",
+    "preview": "cd frontend && npm run preview",
+    "agent": "cd agent && node src/index.js",
+    "panel": "cd frontend && npm run dev",
+    "lint": "cd frontend && npm run lint"
+  }
+}
