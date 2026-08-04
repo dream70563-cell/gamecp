@@ -23,6 +23,7 @@ const WorldService = require("./services/WorldService");
 const FileService = require("./services/FileService");
 const BackupService = require("./services/BackupService");
 const AddonService = require("./services/AddonService");
+const healthRoute = require("./routes/health");
 
 const config=JSON.parse(
     fs.readFileSync(
@@ -41,12 +42,8 @@ const app=express();
 
 app.use(express.json());
 
-app.get("/health",(req,res)=>{
-    res.json({
-        status:"online",
-        ...server.status()
-    });
-});
+healthRoute(app, server);
+
 
 app.get("/status", async (req,res)=>{
 
