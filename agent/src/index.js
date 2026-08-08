@@ -1,3 +1,4 @@
+const { spawn } = require("child_process");
 const http = require("http");
 const { WebSocketServer } = require("ws");
 
@@ -18,6 +19,7 @@ const BedrockProcess=require("./core/BedrockProcess");
 const TunnelMonitor = require("./services/TunnelMonitor");
 const PlayerParser = require("./parsers/PlayerParser");
 const SystemMonitor = require("./services/SystemMonitor");
+const ProcessFinder = require("./services/ProcessFinder");
 const ActionService = require("./services/ActionService");
 const WorldService = require("./services/WorldService");
 const FileService = require("./services/FileService");
@@ -27,6 +29,7 @@ const healthRoute = require("./routes/health");
 const statusRoute = require("./routes/status");
 const filesRoute = require("./routes/files");
 const worldsRoute = require("./routes/worlds");
+const playersRoute = require("./routes/players");
 
 const config=JSON.parse(
     fs.readFileSync(
@@ -34,6 +37,57 @@ const config=JSON.parse(
         "utf8"
     )
 );
+
+// ===== WORLD CHAT HISTORY =====
+const CHAT_HISTORY_FILE = path.join(__dirname, "../data/chat-history.json");
+const CHAT_HISTORY_LIMIT = 500;
+
+function loadChatHistory() {
+    try {
+        if (!fs.existsSync(CHAT_HISTORY_FILE)) {
+            return [];
+        }
+
+        const data = JSON.parse(
+            fs.readFileSync(CHAT_HISTORY_FILE, "utf8")
+        );
+
+        return Array.isArray(data)
+            ? data.slice(-CHAT_HISTORY_LIMIT)
+            : [];
+    } catch (err) {
+        console.error("[ChatHistory] Load failed:", err);
+        return [];
+    }
+}
+
+let chatHistory = loadChatHistory();
+
+function saveChatHistory() {
+    try {
+        fs.mkdirSync(path.dirname(CHAT_HISTORY_FILE), {
+            recursive: true
+        });
+
+        fs.writeFileSync(
+            CHAT_HISTORY_FILE,
+            JSON.stringify(chatHistory, null, 2),
+            "utf8"
+        );
+    } catch (err) {
+        console.error("[ChatHistory] Save failed:", err);
+    }
+}
+
+function addChatHistory(chatData) {
+    chatHistory.push(chatData);
+
+    if (chatHistory.length > CHAT_HISTORY_LIMIT) {
+        chatHistory = chatHistory.slice(-CHAT_HISTORY_LIMIT);
+    }
+
+    saveChatHistory();
+}
 
 const server=new BedrockProcess(config);
 const worlds = new WorldService(config);
@@ -58,6 +112,7 @@ statusRoute(
 filesRoute(app, files);
 
 worldsRoute(app, worlds, server, upload);
+playersRoute(app);
 
 
 
@@ -108,6 +163,29 @@ app.get("/addons",(req,res)=>{
     }
 
 });
+
+app.get("/addons/download",(req,res)=>{
+
+    try{
+
+        const file = addons.getAddonFile(
+            req.query.uuid,
+            req.query.type
+        );
+
+        res.download(file);
+
+    }catch(err){
+
+        res.status(404).json({
+            success:false,
+            error:err.message
+        });
+
+    }
+
+});
+
 
 app.post("/addons/delete",(req,res)=>{
 
@@ -170,7 +248,31 @@ app.get("/console",(req,res)=>{
 });
 
 app.post("/start",(req,res)=>{
-    res.json({success:server.start()});
+    const success = server.start();
+
+    // Ensure Playit tunnel is running.
+    // Agent and frontend are intentionally NOT restarted here.
+    const { execSync } = require("child_process");
+
+    try {
+        execSync("pgrep -f playitd", {
+            stdio: "ignore"
+        });
+    } catch {
+        const playit = spawn(
+            "/root/playitd",
+            [],
+            {
+                cwd: "/root",
+                detached: true,
+                stdio: "ignore"
+            }
+        );
+
+        playit.unref();
+    }
+
+    res.json({success});
 });
 
 app.post("/stop",(req,res)=>{
@@ -210,7 +312,24 @@ function wsBroadcast(type,data){
 
 
 server.onConsole = (line)=>{
+    // Semua output Bedrock tetap dikirim ke Console web.
     wsBroadcast("console", line);
+
+    // Essentials Menu:
+    // [Scripting] [WORLD_CHAT] PlayerName: message
+    const chatMatch = line.match(/\[WORLD_CHAT\]\s+([^:]+):\s*(.*)/);
+
+    if(chatMatch){
+        const chatData = {
+            player: chatMatch[1].trim(),
+            message: chatMatch[2].trim(),
+            timestamp: Date.now()
+        };
+
+        console.log("[WORLD CHAT EVENT]", chatData);
+        addChatHistory(chatData);
+        wsBroadcast("world_chat", chatData);
+    }
 };
 
 httpServer.listen(8080,()=>{
@@ -223,13 +342,21 @@ wss.on("connection", async (ws)=>{
     }));
 
     ws.send(JSON.stringify({
+        type:"chat_history",
+        data:chatHistory
+    }));
+
+    ws.send(JSON.stringify({
         type:"status",
         data:{
             ...server.status(),
             ...server.info(),
+            bedrockVersion: server.version(),
             tunnel:TunnelMonitor.get(),
             players:PlayerParser.get(),
-            system: await SystemMonitor.get(server.status().pid),
+            system: await SystemMonitor.get(
+                server.status().pid || ProcessFinder.findBedrock()
+            ),
         }
     }));
 
@@ -239,9 +366,29 @@ wss.on("connection", async (ws)=>{
 
             switch(msg.type){
 
-                case "command":
-                    server.send(msg.data);
+                case "command": {
+                    const command = String(msg.data ?? "").trim();
+
+                    server.send(command);
+
+                    // Command "say ..." dari World Chat web juga
+                    // dimasukkan ke kotak dialog World Chat.
+                    const sayMatch = command.match(/^say\s+(.+)$/i);
+
+                    if (sayMatch) {
+                        const chatData = {
+                            player: "SERVER",
+                            message: sayMatch[1].trim(),
+                            timestamp: Date.now()
+                        };
+
+                        console.log("[WORLD CHAT EVENT]", chatData);
+                        addChatHistory(chatData);
+                        wsBroadcast("world_chat", chatData);
+                    }
+
                     break;
+                }
 
                 case "power":
                     if(msg.action==="start") server.start();
@@ -266,9 +413,12 @@ setInterval(async ()=>{
         data:{
             ...server.status(),
             ...server.info(),
+            bedrockVersion: server.version(),
             tunnel:TunnelMonitor.get(),
             players:PlayerParser.get(),
-            system: await SystemMonitor.get(server.status().pid),
+            system: await SystemMonitor.get(
+                server.status().pid || ProcessFinder.findBedrock()
+            ),
         }
     });
 

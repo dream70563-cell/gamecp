@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8080/status";
+const API_URL = "http://100.93.222.98:8080/status";
 
 export async function getServerHealth() {
 

@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gameCPWS } from '../services/ws';
+import { sendServerPower } from '../services/api';
 import { getServerHealth } from '../services/api';
 
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const [status, setStatus] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [worldChat, setWorldChat] = useState([]);
 
   useEffect(() => {
     // Initial HTTP fetch fallback
@@ -33,10 +35,20 @@ export function useWebSocket() {
       });
     });
 
+    const unsubscribeWorldChat = gameCPWS.onWorldChat((chat) => {
+      setWorldChat((prev) => {
+        const next = [...prev, chat];
+        return next.length > 500
+          ? next.slice(next.length - 500)
+          : next;
+      });
+    });
+
     return () => {
       unsubscribeConn();
       unsubscribeStatus();
       unsubscribeConsole();
+      unsubscribeWorldChat();
     };
   }, []);
 
@@ -44,20 +56,40 @@ export function useWebSocket() {
     return gameCPWS.sendCommand(cmd);
   }, []);
 
-  const sendPower = useCallback((action) => {
-    return gameCPWS.sendPower(action);
+  const sendWorldChat = useCallback((message) => {
+    const text = String(message ?? '').trim();
+
+    if (!text) return false;
+
+    return gameCPWS.sendCommand(`say ${text}`);
+  }, []);
+
+  const sendPower = useCallback(async (action) => {
+    try {
+      return await sendServerPower(action);
+    } catch (err) {
+      console.error('[Power] Failed:', action, err);
+      throw err;
+    }
   }, []);
 
   const clearLogs = useCallback(() => {
     setLogs([]);
   }, []);
 
+  const clearWorldChat = useCallback(() => {
+    setWorldChat([]);
+  }, []);
+
   return {
     isConnected,
     status,
     logs,
+    worldChat,
     sendCommand,
+    sendWorldChat,
     sendPower,
     clearLogs,
+    clearWorldChat,
   };
 }

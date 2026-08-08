@@ -6,6 +6,7 @@ class GameCPWebSocket {
     this.ws = null;
     this.statusListeners = new Set();
     this.consoleListeners = new Set();
+      this.worldChatListeners = new Set();
     this.connectionListeners = new Set();
     this.reconnectTimer = null;
     this.isConnected = false;
@@ -35,7 +36,15 @@ class GameCPWebSocket {
             this.notifyStatus(message.data);
           } else if (message.type === 'console') {
             this.notifyConsole(message.data);
-          } else if (message.type === 'console_history') {
+          } else if (message.type === 'world_chat') {
+              this.notifyWorldChat(message.data);
+            } else if (message.type === 'chat_history') {
+              if (Array.isArray(message.data)) {
+                message.data.forEach(chat => {
+                  this.notifyWorldChat(chat);
+                });
+              }
+            } else if (message.type === 'console_history') {
             if (Array.isArray(message.data)) {
               message.data.forEach(line => this.notifyConsole(line));
             }
@@ -80,7 +89,12 @@ class GameCPWebSocket {
     return () => this.consoleListeners.delete(callback);
   }
 
-  onConnectionChange(callback) {
+  onWorldChat(callback) {
+      this.worldChatListeners.add(callback);
+      return () => this.worldChatListeners.delete(callback);
+    }
+
+    onConnectionChange(callback) {
     this.connectionListeners.add(callback);
     return () => this.connectionListeners.delete(callback);
   }
@@ -105,7 +119,17 @@ class GameCPWebSocket {
     }
   }
 
-  notifyConnection(state) {
+  notifyWorldChat(chat) {
+      for (const listener of this.worldChatListeners) {
+        try {
+          listener(chat);
+        } catch (err) {
+          console.warn('[WebSocket] World chat listener error:', err);
+        }
+      }
+    }
+
+    notifyConnection(state) {
     for (const listener of this.connectionListeners) {
       try {
         listener(state);

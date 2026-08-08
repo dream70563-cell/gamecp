@@ -1,7 +1,7 @@
 {
   "server": {
     "name": "Dream70563_Server",
-    "path": "/root/bedrock-1.26.33.2",
+    "path": "/root/gamecp/minecraft/endstone-26.40/bedrock_server",
     "binary": "./bedrock_server"
   },
   "websocket": {

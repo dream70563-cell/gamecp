@@ -344,13 +344,63 @@ class AddonService {
                     ? this.resourcePath
                     : this.behaviorPath;
 
-                let target = path.join(
-                    targetRoot,
-                    baseName
-                );
+                // Detect existing addon by UUID.
+                // Same UUID means update/replace, not duplicate.
+                let existingTarget = null;
 
-                if (fs.existsSync(target)) {
-                    target += `-${Date.now()}`;
+                if (fs.existsSync(targetRoot)) {
+                    for (const item of fs.readdirSync(targetRoot, {
+                        withFileTypes: true
+                    })) {
+                        if (!item.isDirectory()) continue;
+
+                        const existingManifest = path.join(
+                            targetRoot,
+                            item.name,
+                            "manifest.json"
+                        );
+
+                        if (!fs.existsSync(existingManifest)) continue;
+
+                        try {
+                            const existingText = fs
+                                .readFileSync(existingManifest, "utf8")
+                                .replace(/^\uFEFF/, "");
+
+                            const existing = JSON5.parse(existingText);
+
+                            if (
+                                existing.header?.uuid ===
+                                manifest.header.uuid
+                            ) {
+                                existingTarget = path.join(
+                                    targetRoot,
+                                    item.name
+                                );
+                                break;
+                            }
+                        } catch {}
+                    }
+                }
+
+                let target;
+
+                if (existingTarget) {
+                    target = existingTarget;
+
+                    fs.rmSync(target, {
+                        recursive: true,
+                        force: true
+                    });
+                } else {
+                    target = path.join(
+                        targetRoot,
+                        baseName
+                    );
+
+                    if (fs.existsSync(target)) {
+                        target += `-${Date.now()}`;
+                    }
                 }
 
                 fs.cpSync(source, target, {
@@ -393,6 +443,52 @@ class AddonService {
             } catch {}
         }
     }
+
+    getAddonFile(uuid,type){
+
+        const root =
+            type==="resource"
+                ? this.resourcePath
+                : this.behaviorPath;
+
+        for(const item of fs.readdirSync(root,{withFileTypes:true})){
+
+            if(!item.isDirectory()) continue;
+
+            const manifest = path.join(root,item.name,"manifest.json");
+
+            if(!fs.existsSync(manifest)) continue;
+
+            try{
+
+                const data = JSON5.parse(
+                    fs.readFileSync(manifest,"utf8")
+                        .replace(/^\uFEFF/,"")
+                );
+
+                if(data.header?.uuid!==uuid) continue;
+
+                const zip="/tmp/"+item.name+".zip";
+
+                try{ fs.rmSync(zip,{force:true}); }catch{}
+
+                execFileSync("/usr/bin/zip",[
+                    "-qr",
+                    zip,
+                    item.name
+                ],{
+                    cwd:root
+                });
+
+                return zip;
+
+            }catch{}
+
+        }
+
+        throw new Error("Addon not found");
+    }
+
 }
 
 module.exports = AddonService;

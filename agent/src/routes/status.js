@@ -14,6 +14,7 @@ module.exports = function (
         res.json({
             ...server.status(),
             ...server.info(),
+            bedrockVersion: server.version(),
             tunnel,
             players: PlayerParser.get(),
             system

@@ -63,14 +63,6 @@ export function DashboardPage({ status, sendPower, sendAction, logs, onNavigateC
               Start Server
             </Button>
             <Button
-              variant="warning"
-              disabled={!isOnline}
-              onClick={() => sendPower('restart')}
-              icon={RotateCw}
-            >
-              Restart
-            </Button>
-            <Button
               variant="danger"
               disabled={!isOnline}
               onClick={() => sendPower('stop')}

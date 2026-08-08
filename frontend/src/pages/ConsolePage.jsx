@@ -27,13 +27,27 @@ const ansiConverter = new Ansi({
   }
 });
 
-export function ConsolePage({ logs, sendCommand, clearLogs }) {
+export function ConsolePage({ logs, status, sendCommand, clearLogs }) {
   const [inputCommand, setInputCommand] = useState('');
   const [filterText, setFilterText] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
   const [copied, setCopied] = useState(false);
   const [commandHistory, setCommandHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [suggestionIndex, setSuggestionIndex] = useState(-1);
+
+  const players = status?.players?.players || [];
+
+  const playerQuery = inputCommand
+    .split(" ")
+    .pop()
+    .toLowerCase();
+
+  const filteredPlayers = playerQuery
+    ? players.filter(player =>
+        player.toLowerCase().includes(playerQuery)
+      )
+    : [];
 
   const terminalRef = useRef(null);
 
@@ -56,16 +70,68 @@ export function ConsolePage({ logs, sendCommand, clearLogs }) {
   };
 
   const handleKeyDown = (e) => {
+
+    // Player suggestion navigation
+    if (filteredPlayers.length > 0) {
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+
+        setSuggestionIndex(prev =>
+          prev < filteredPlayers.length - 1 ? prev + 1 : 0
+        );
+
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+
+        setSuggestionIndex(prev =>
+          prev > 0 ? prev - 1 : filteredPlayers.length - 1
+        );
+
+        return;
+      }
+
+      if (e.key === 'Enter' && suggestionIndex >= 0) {
+        e.preventDefault();
+
+        const player = filteredPlayers[suggestionIndex];
+
+        const parts = inputCommand.trim().split(" ");
+        parts[parts.length - 1] = player;
+
+        setInputCommand(parts.join(" "));
+        setSuggestionIndex(-1);
+
+        return;
+      }
+    }
+
+
+    // Command history navigation
     if (e.key === 'ArrowUp') {
       e.preventDefault();
+
       if (commandHistory.length === 0) return;
-      const nextIdx = historyIndex === -1 ? commandHistory.length - 1 : Math.max(0, historyIndex - 1);
+
+      const nextIdx =
+        historyIndex === -1
+          ? commandHistory.length - 1
+          : Math.max(0, historyIndex - 1);
+
       setHistoryIndex(nextIdx);
       setInputCommand(commandHistory[nextIdx] || '');
+
     } else if (e.key === 'ArrowDown') {
+
       e.preventDefault();
+
       if (historyIndex === -1) return;
+
       const nextIdx = historyIndex + 1;
+
       if (nextIdx >= commandHistory.length) {
         setHistoryIndex(-1);
         setInputCommand('');
@@ -73,6 +139,10 @@ export function ConsolePage({ logs, sendCommand, clearLogs }) {
         setHistoryIndex(nextIdx);
         setInputCommand(commandHistory[nextIdx]);
       }
+    }
+
+    if (e.key === 'Escape') {
+      setSuggestionIndex(-1);
     }
   };
 
@@ -168,7 +238,7 @@ export function ConsolePage({ logs, sendCommand, clearLogs }) {
       </div>
 
       {/* Interactive Command Input Prompt */}
-      <form onSubmit={handleSend} className="flex items-center gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800 shrink-0">
+      <form onSubmit={handleSend} className="relative flex items-center gap-2 p-2 rounded-xl bg-slate-900 border border-slate-800 shrink-0">
         <div className="px-3 py-2 text-xs font-mono font-semibold text-emerald-400 bg-slate-950 rounded-lg border border-slate-800 flex items-center gap-1.5 shrink-0">
           <Zap className="w-3.5 h-3.5 text-emerald-400" />
           [server@bedrock ~]$
@@ -181,7 +251,31 @@ export function ConsolePage({ logs, sendCommand, clearLogs }) {
           placeholder="Enter command (e.g., list, op PlayerName, say Hello, kick...)"
           className="flex-1 bg-transparent px-3 py-2 text-sm text-slate-100 placeholder-slate-500 font-mono focus:outline-none"
         />
-        <Button
+        
+          {filteredPlayers.length > 0 && (
+            <div className="absolute bottom-full mb-2 left-2 right-2 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden shadow-xl">
+              {filteredPlayers.map((player, index) => (
+                <button
+                  key={player}
+                  type="button"
+                  onClick={() => {
+                    const parts = inputCommand.trim().split(" ");
+                    parts[parts.length - 1] = player;
+                    setInputCommand(parts.join(" "));
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm font-mono ${
+                      index === suggestionIndex
+                        ? "bg-blue-600 text-white"
+                        : "text-slate-200 hover:bg-slate-800"
+                    }`}
+                >
+                  🟢 {player}
+                </button>
+              ))}
+            </div>
+          )}
+
+<Button
           type="submit"
           variant="primary"
           size="md"

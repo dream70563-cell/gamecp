@@ -8,7 +8,8 @@ import {
   Sliders,
   Save,
   Box,
-  ShieldCheck
+  ShieldCheck,
+  MessageSquare
 } from 'lucide-react';
 
 export function Sidebar({ status }) {
@@ -20,6 +21,7 @@ export function Sidebar({ status }) {
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/console', label: 'Console', icon: Terminal },
     { to: '/players', label: 'Players', icon: Users, badge: isOnline ? `${playerCount}/${maxPlayers}` : null },
+      { to: '/chat', label: 'World Chat', icon: MessageSquare },
     { to: '/worlds', label: 'Worlds', icon: Globe },
     { to: '/files', label: 'File Manager', icon: FolderTree },
     { to: '/settings', label: 'Server Settings', icon: Sliders },

@@ -136,7 +136,7 @@ export function FilesPage() {
           <div>
             <h2 className="text-xl font-bold text-slate-100">File Manager</h2>
             <p className="text-xs text-slate-400 mt-0.5 font-mono">
-              /root/bedrock-1.26.33.2{currentPath ? `/${currentPath}` : ''}
+              /root/gamecp/minecraft/endstone-26.40/bedrock_server{currentPath ? `/${currentPath}` : ''}
             </p>
           </div>
         </div>

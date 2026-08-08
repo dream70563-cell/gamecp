@@ -45,3 +45,7 @@ minecraft/
 # Audit Files
 # ==========================
 *.txt
+
+backup/
+console.json
+console-chat.json

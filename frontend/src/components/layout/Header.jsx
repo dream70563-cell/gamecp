@@ -1,4 +1,4 @@
-import { Play, RotateCw, Square, Cpu, HardDrive, Wifi } from 'lucide-react';
+import { Play,  Square, Cpu, HardDrive, Wifi } from 'lucide-react';
 import { StatusBadge, TunnelBadge } from '../common/Badge';
 import { Button } from '../common/Button';
 
@@ -24,7 +24,9 @@ export function Header({ status, sendPower }) {
               19132 (UDP)
             </span>
             <span>•</span>
-            <span>Bedrock BDS v1.26.33.2</span>
+            <span>
+                Bedrock BDS {status?.bedrockVersion ? `v${status.bedrockVersion}` : ''}
+              </span>
           </div>
         </div>
       </div>
@@ -64,15 +66,6 @@ export function Header({ status, sendPower }) {
           icon={Play}
         >
           Start
-        </Button>
-        <Button
-          variant="warning"
-          size="sm"
-          disabled={!isOnline}
-          onClick={() => sendPower('restart')}
-          icon={RotateCw}
-        >
-          Restart
         </Button>
         <Button
           variant="danger"
